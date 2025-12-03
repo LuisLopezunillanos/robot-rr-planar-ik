@@ -205,3 +205,40 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ARDUINO / ESP32
+
+
+# Compiled and binary files
+*.hex
+*.bin
+*.elf
+*.map
+*.esp
+*.d
+*.o
+*.a
+
+# Arduino IDE specific files
+*.ino.cpp
+*.ino.hex
+*.tmp
+
+# PlatformIO 
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# ESP-IDF (Framework Espressif)
+sdkconfig.old
+# The 'build/' folder was already in your Python section, so it works for both.
+
+# System files (Mac/Windows)
+.DS_Store
+Thumbs.db
+
+# Credentials and secrets (Optional but recommended)
+# If you have a file with your WiFi password, add it here so we don't publish it.
+# Example:
+# secrets.h
+# wifi_credentials.py
