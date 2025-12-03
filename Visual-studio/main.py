@@ -1,22 +1,23 @@
+#Recommendation: First, test with the ESP32 code to verify the servo's rotation conditions and the motor encoder connections to avoid damage to the structural and internal components of these devices.
 import cv2
 import numpy as np
 import time
 import math
 import serial
 
-# --- CONFIGURACIÓN DEL ROBOT ---
-LONGITUD_L1 = 202.5
-LONGITUD_L2 = 255.0
+# --- ROBOT CONFIGURATION ---
+LONGITUD_L1 = 202.5 #length of the first link/articulation
+LONGITUD_L2 = 255.0 #length of the second link/articulation
 OFFSET_BASE_X = 11.6
 OFFSET_BASE_Y = 37.0
 
-# --- CONFIGURACIÓN SERIAL ---
-PUERTO_SERIAL = 'COM4'  # <--- ¡VERIFICA TU PUERTO!
+# --- SERIAL CONFIGURATION ---
+PUERTO_SERIAL = 'COM4'  # <--- CHECK YOUR PORT!, The same one where the ESP32 is connected
 BAUD_RATE = 115200
 
-# Configuración de la Línea Recta
-TIEMPO_RECORRIDO = 20  # Segundos para trazar la línea
-PASOS_POR_SEGUNDO = 100
+# Straight Line Configuration
+TIEMPO_RECORRIDO = 20  # Seconds to draw the line
+PASOS_POR_SEGUNDO = 100 #dot plotting frequency
 
 ser = None
 try:
@@ -25,7 +26,7 @@ try:
 except Exception as e:
     print(f"Modo Simulación (Sin Serial): {e}")
 
-# Variables globales
+# Global variables
 detectando_punto = None
 detectando_punto_coord = None 
 detectando_x = None         
@@ -33,9 +34,9 @@ detectando_x_coord = None
 
 def nada(x): pass
 
-# --- FUNCIÓN DE ENVÍO (3 VALORES) ---
+# --- SEND FUNCTION (3 VALUES) ---
 def enviar_datos(m1, m2, servo, etiqueta="Datos"):
-    # FORMATO: "ANGULO1,ANGULO2,SERVO\n"
+    # FORMAT: "ANGLE1,ANGLE2,SERVO\n"
     mensaje = f"{m1:.2f},{m2:.2f},{int(servo)}\n" 
     
     if ser and ser.is_open:
@@ -43,7 +44,7 @@ def enviar_datos(m1, m2, servo, etiqueta="Datos"):
     else:
         pass
 
-# --- 1. MATEMÁTICAS (IK) ---
+# --- 1. MATHEMATICS (IK) ---
 def ordenar_puntos(puntos):
     rect = np.zeros((4, 2), dtype="float32")
     s = puntos.sum(axis=1)
@@ -54,7 +55,7 @@ def ordenar_puntos(puntos):
     rect[3] = puntos[np.argmax(diff)]
     return rect
 
-def calcular_cinematica(x, y):
+def calcular_cinematica(x, y): #Inverse Kinematics Calculation
     if x == 0 and y == 0: return 0.0, 0.0
     r = math.sqrt(x**2 + y**2)
     if r > (LONGITUD_L1 + LONGITUD_L2): return None
@@ -74,7 +75,7 @@ def calcular_cinematica(x, y):
     except ValueError:
         return None
 
-# --- 2. PROCESAMIENTO IMAGEN ---
+# --- 2. IMAGE PROCESSING ---
 def procesar_contenido(frame, contorno_cuadrado, pts_ordenados, umbral_tinta):
     global detectando_punto, detectando_x
     global detectando_punto_coord, detectando_x_coord
@@ -137,7 +138,7 @@ def procesar_contenido(frame, contorno_cuadrado, pts_ordenados, umbral_tinta):
     except Exception:
         pass
 
-# --- 3. BUCLE PRINCIPAL ---
+# --- 3. MAIN LOOP ---
 def main():
     global detectando_punto, detectando_x, detectando_punto_coord, detectando_x_coord
     
@@ -152,17 +153,17 @@ def main():
     cv2.createTrackbar("Brillo Fondo", ventana, 150, 255, nada)
     cv2.createTrackbar("Sensib. Tinta", ventana, 110, 255, nada)
 
-    # Variables de Estado
+    # State Variables
     fase = 0
     tiempo_ref = 0
     
-    # Memoria
+    # Memory
     memoria_punto_ang = None
     memoria_punto_xy = None
     memoria_x_ang = None
     memoria_x_xy = None
     
-    # Interpolacion
+    # Interpolation
     interpolacion_iniciada = False
     inicio_interpolacion_time = 0
 
@@ -194,12 +195,12 @@ def main():
                     procesar_contenido(frame, approx, pts_ord, val_tinta)
                     break 
 
-        # --- LÓGICA DE CONTROL ---
+        # --- CONTROL LOGIC ---
         tiempo_actual = time.time()
         mensaje = ""
         color_estado = (255, 255, 255)
 
-        # FASE 0: BÚSQUEDA
+        # PHASE 0: SEARCH
         if fase == 0:
             mensaje = "F0: BUSCANDO OBJETIVOS..."
             color_estado = (0, 0, 255) # Rojo
@@ -214,35 +215,35 @@ def main():
             elif detectando_punto: mensaje = "VEO PUNTO, FALTA X"
             elif detectando_x: mensaje = "VEO X, FALTA PUNTO"
 
-        # FASE 1: ESPERA y VIAJE INICIAL (SERVO 180)
+        # PHASE 1: WAIT and INITIAL TRIP (SERVO 180)
         elif fase == 1:
             dt = 10 - int(tiempo_actual - tiempo_ref)
             mensaje = f"F1: PREPARANDO (SERVO 180)... {dt}s"
             color_estado = (0, 255, 255) # Amarillo
             if dt <= 0:
-                # PUNTO INICIAL -> Servo en 180
+               # STARTING POINT -> Servo at 180, This depends on how the servo is mounted; it's recommended to test the rotation angles beforehand.
                 enviar_datos(memoria_punto_ang[0], memoria_punto_ang[1], 180, "IR A PUNTO")
                 tiempo_ref = tiempo_actual
                 fase = 2
                 interpolacion_iniciada = False
 
-        # FASE 2: SECUENCIA DE TRAZO
+       # PHASE 2: TRACING SEQUENCE
         elif fase == 2:
             tiempo_desde_fase2 = tiempo_actual - tiempo_ref
             
-            # --- SUB-ETAPA A: LLEGADA ---
+            # --- SUB-STAGE A: ARRIVAL ---
             if tiempo_desde_fase2 < 4.0:
                  mensaje = "F2: A. LLEGANDO AL PUNTO... (SERVO 180)"
                  color_estado = (0, 255, 0)
             
-            # --- SUB-ETAPA B: BAJADA DE LAPIZ ---
+            # --- SUB-STAGE B: PENCIL DROP ---
             elif tiempo_desde_fase2 < 10.0: 
                  dt_wait = int(10.0 - tiempo_desde_fase2)
                  mensaje = f"F2: B. BAJANDO LAPIZ... {dt_wait}s"
                  color_estado = (0, 0, 255) 
                  enviar_datos(memoria_punto_ang[0], memoria_punto_ang[1], 0, "BAJAR SERVO")
             
-            # --- SUB-ETAPA C: TRAZO DE LINEA ---
+            # --- SUB-STAGE C: LINE DRAWING ---
             else:
                 if not interpolacion_iniciada:
                     inicio_interpolacion_time = tiempo_actual
@@ -261,38 +262,38 @@ def main():
                 angulos_intermedios = calcular_cinematica(current_x, current_y)
                 
                 if angulos_intermedios:
-                    # MOVIMIENTO CON SERVO 0 (Dibujando)
+                    # MOTION WITH SERVO 0 (Drawing)
                     enviar_datos(angulos_intermedios[0], angulos_intermedios[1], 0, "LINEA")
                 
                 mensaje = f"F2: C. TRAZANDO LINEA... {int(progreso*100)}%"
                 color_estado = (0, 255, 0)
 
-                # --- MODIFICACIÓN IMPORTANTE AQUI ---
+                # --- IMPORTANT MODIFICATION HERE ---
                 if progreso >= 1.0:
-                    # Antes de cambiar de fase, levantamos el lápiz (180) 
-                    # usando los ángulos de la posición final (la X)
+                    # Before changing phase, we lift the pencil (180) 
+                    # using the angles of the final position (the X)
                     ang_fin_1, ang_fin_2 = memoria_x_ang
                     enviar_datos(ang_fin_1, ang_fin_2, 180, "LAPIZ ARRIBA")
                     
                     tiempo_ref = tiempo_actual
                     fase = 3
 
-        # FASE 3: ESPERA Y LUEGO RETORNO A ORIGEN
+        # PHASE 3: WAIT AND THEN RETURN TO ORIGIN
         elif fase == 3:
             dt = 10 - int(tiempo_actual - tiempo_ref)
             mensaje = f"F3: FIN TRAZO. ESPERANDO CON LAPIZ ARRIBA... {dt}s"
             color_estado = (0, 255, 0) 
             
-            # Nota: Como el servo ya se subió al final de fase 2,
-            # aquí solo esperamos antes de movernos al origen.
+            # Note: Since the servo has already been raised to the end of phase 2,
+            # Here we just wait before moving to the origin.
             
             if dt <= 0:
-                # HOME -> Servo en 180
+                # HOME -> Servo at 180
                 enviar_datos(0.0, 0.0, 180, "HOME")
                 tiempo_ref = tiempo_actual
                 fase = 4
 
-        # FASE 4: RESET
+        # PHASE 4: RESET
         elif fase == 4:
             dt = 20 - int(tiempo_actual - tiempo_ref)
             mensaje = f"F4: RESETEANDO... {dt}s"
