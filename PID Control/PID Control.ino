@@ -1,11 +1,11 @@
 /*
- * CONTROL DE POSICIÓN: 2 MOTORES DC (PID) + 1 SERVO SG90
- * ESP32 - INTEGRACIÓN CORREGIDA
- */
+* POSITION CONTROL: 2 DC MOTORS (PID) + 1 SG90 SERVO
+* ESP32 - INTEGRATION CORRECTED
+*/
 
 #include <ESP32Servo.h>
 
-// --- CONFIGURACIÓN DE PINES ---
+// --- PIN CONFIGURATION ---
 
 // MOTOR 1
 #define M1_ENC_A 4
@@ -24,7 +24,7 @@
 // SERVO
 static const int servoPin = 13; // Tu pin de confianza
 
-// --- PARÁMETRO GENERALES ---
+// --- GENERAL PARAMETERS ---
 #define PPR 1650.0            
 const double DEGREES_PER_PULSE = 360.0 / PPR;
 const int PWM_FREQ = 20000;
@@ -34,13 +34,13 @@ const int PWM_MIN_MOVING = 150;
 const double TOLERANCE_DEGREES = 1.0;
 const double Ts = 0.02; // 20ms
 
-// --- VARIABLES GLOBALES ---
+// --- GLOBAL VARIABLES ---
 volatile long pulseCount1 = 0;
 volatile long pulseCount2 = 0;
 
-Servo miServo; // Objeto Servo
+Servo miServo; // Servo Object
 
-// --- RUTINAS DE INTERRUPCIÓN (ISRs) ---
+// --- INTERRUPT ROUTINES (ISRs) ---
 void IRAM_ATTR readEncoder1() {
   if (digitalRead(M1_ENC_B) == LOW) pulseCount1++;
   else pulseCount1--;
@@ -52,7 +52,7 @@ void IRAM_ATTR readEncoder2() {
 }
 
 // ==========================================
-// CLASE CONTROLADOR PID (Sin cambios)
+// PID CONTROLLER CLASS
 // ==========================================
 class MotorPID {
   private:
@@ -77,7 +77,7 @@ class MotorPID {
     void begin() {
       pinMode(pinIN1, OUTPUT);
       pinMode(pinIN2, OUTPUT);
-      // Configurar PWM para motores DC
+      // Configure PWM for DC motors
       ledcAttach(pinPWM, PWM_FREQ, PWM_RESOLUTION);
       stopMotor();
     }
@@ -151,7 +151,7 @@ class MotorPID {
 };
 
 // ==========================================
-// INSTANCIAS GLOBALES
+// GLOBAL INSTANCES
 // ==========================================
 MotorPID motor1(M1_IN1, M1_IN2, M1_PWM, &pulseCount1, 2.84, 2.7, 0.9);
 MotorPID motor2(M2_IN1, M2_IN2, M2_PWM, &pulseCount2, 3.67, 2.05, 0.5); 
@@ -162,16 +162,17 @@ MotorPID motor2(M2_IN1, M2_IN2, M2_PWM, &pulseCount2, 3.67, 2.05, 0.5);
 void setup() {
   Serial.begin(115200);
 
-  // --- CONFIGURACIÓN DEL SERVO (Tu código exacto) ---
-  // Reservar timer antes de cualquier otra cosa de PWM
+// --- SERVO CONFIGURATION ---
+// Reserve the timer before anything else related to PWM
+  
   ESP32PWM::allocateTimer(0);
   miServo.setPeriodHertz(50); 
   miServo.attach(servoPin, 100, 1000); 
   
-  // Posición inicial del servo
+ // Initial position of the servo
   miServo.write(90);
 
-  // --- CONFIGURACIÓN MOTORES Y ENCODERS ---
+// --- MOTOR AND ENCODER CONFIGURATION ---
   pinMode(M1_ENC_A, INPUT_PULLUP);
   pinMode(M1_ENC_B, INPUT_PULLUP);
   pinMode(M2_ENC_A, INPUT_PULLUP);
@@ -190,17 +191,17 @@ void setup() {
 // LOOP
 // ==========================================
 void loop() {
-  // --- LECTURA SERIAL (M1, M2, SERVO) ---
+// --- SERIAL READING (M1, M2, SERVO) ---
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     input.trim(); 
 
-    // Buscamos las dos comas
+    // We are looking for the two commas
     int firstComma = input.indexOf(',');
     int secondComma = input.indexOf(',', firstComma + 1);
 
     if (firstComma != -1 && secondComma != -1) {
-      // Parseamos los 3 valores
+      // We parse the 3 values
       String strM1 = input.substring(0, firstComma);
       String strM2 = input.substring(firstComma + 1, secondComma);
       String strServo = input.substring(secondComma + 1);
@@ -209,38 +210,35 @@ void loop() {
       double targetM2 = strM2.toDouble();
       int targetServo = strServo.toInt();
 
-      // 1. Asignar Targets a los Motores PID
+      // 1. Assign Targets to PID Engines
       motor1.setTarget(targetM1);
       motor2.setTarget(targetM2);
 
-      // 2. Mover Servo inmediatamente
-      targetServo = constrain(targetServo, 0, 180); // Seguridad
+      // 2. Move Servo immediately
+      targetServo = constrain(targetServo, 0, 180); // Segurity
       miServo.write(targetServo);
 
-      // (Opcional) Confirmación visual solo al recibir comando
-      // Serial.print("CMD RECIBIDO -> Servo: "); Serial.println(targetServo);
+      // (Optional) Visual confirmation only upon receiving command
+      // Serial.print("CMD RECEIVED -> Servo: "); Serial.println(targetServo);
     }
   }
 
-  // --- CONTROL PID (50Hz) Y SERIAL PLOTTER ---
+  // --- PID CONTROL (50Hz) AND SERIAL PLOTTER ---
   unsigned long currentMillis = millis();
   static unsigned long previousMillis = 0;
   
   if (currentMillis - previousMillis >= 20) { 
     previousMillis = currentMillis;
     
-    // Actualizar cálculos PID
+    // Update PID calculations
     motor1.update();
     motor2.update();
 
-    // --- SALIDA SERIAL (Idéntica a la original para tu gráfica) ---
+    // --- SERIAL OUTPUT (Identical to the original for your graphics card) ---
     Serial.print(motor1.getTargetAngle()); Serial.print(",");
     Serial.print(motor1.getCurrentAngle()); Serial.print(",");
     Serial.print(motor2.getTargetAngle()); Serial.print(",");
     Serial.println(motor2.getCurrentAngle());
     
-    // NOTA: No imprimo la posición del servo aquí porque ensuciaría 
-    // la gráfica de 4 líneas que ya tienes configurada. 
-    // El servo se mueve físicamente, que es lo importante.
   }
 }
